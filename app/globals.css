@@ -2,8 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   font-family: Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
+
+/* Make sure the root div fills the entire viewport */
+body > div, 
+#__next, 
+main {
+  height: 100%;
+  width: 100%;
+}
+
+/* ReactFlow specific styles */
+.react-flow__container {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+}
+
+.react-flow {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+}
+
+.react-flow__renderer {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+}
+
+.react-flow__pane {
+  z-index: 1;
 }
 
 @layer utilities {

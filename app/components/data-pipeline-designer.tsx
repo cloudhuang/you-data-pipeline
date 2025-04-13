@@ -9,10 +9,10 @@ export default function DataPipelineDesigner() {
   const [selectedNode, setSelectedNode] = useState<any>(null)
 
   return (
-    <div className="h-full">
+    <div className="h-full w-full flex overflow-hidden">
       <SidebarProvider defaultOpen={true}>
         <DataSourceSidebar onSelectNode={setSelectedNode} />
-        <div className="ml-64 h-full">
+        <div className="h-full w-full overflow-hidden" style={{ position: 'relative' }}>
           <PipelineFlow selectedNode={selectedNode} />
         </div>
       </SidebarProvider>
