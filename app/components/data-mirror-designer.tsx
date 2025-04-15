@@ -6,15 +6,28 @@ import DataSourceSidebar from "./data-source-sidebar"
 import DataMirrorFlow from "./data-mirror-flow"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Database, FileText, Globe, HardDrive, Server, Save, Play, Settings, RefreshCw, Eye, Plus, ArrowRight, FileJson, Search } from "lucide-react"
+import { Database, FileText, Globe, HardDrive, Server, Save, Play, Settings, RefreshCw, Eye, Plus, ArrowRight, FileJson, Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card } from "@/components/ui/card"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export default function DataMirrorDesigner() {
   const [selectedNode, setSelectedNode] = useState<any>(null)
   const [activeTab, setActiveTab] = useState("design")
   const [selectedSource, setSelectedSource] = useState<string | null>(null)
+  const [showSourceConfig, setShowSourceConfig] = useState(false)
+  const [isDesigningFlow, setIsDesigningFlow] = useState(false)
+
+  const handleSourceSelect = (source: string) => {
+    setSelectedSource(source)
+    setShowSourceConfig(true)
+  }
+
+  const handleSourceConfigComplete = () => {
+    setShowSourceConfig(false)
+    setIsDesigningFlow(true)
+  }
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
@@ -49,100 +62,111 @@ export default function DataMirrorDesigner() {
         {/* Main content area */}
         <div className="flex-1 flex overflow-hidden">
           <TabsContent value="design" className="flex-1 h-full m-0 p-0">
-            <div className="flex h-full">
-              {/* Left Sidebar - Data Sources */}
-              <div className="w-64 border-r border-gray-200 bg-white">
-                <div className="p-4">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="搜索数据源..." className="pl-8" />
+            {isDesigningFlow ? (
+              <div className="flex h-full">
+                <SidebarProvider defaultOpen={true}>
+                  <DataSourceSidebar onSelectNode={setSelectedNode} />
+                  <div className="h-full w-full overflow-hidden" style={{ position: 'relative' }}>
+                    <DataMirrorFlow selectedNode={selectedNode} />
                   </div>
-                </div>
-                <ScrollArea className="h-[calc(100vh-8rem)]">
-                  <div className="space-y-4 p-4">
-                    <div>
-                      <h3 className="mb-2 text-sm font-medium text-gray-500">关系型数据库</h3>
-                      <div className="space-y-1">
-                        <Button 
-                          variant={selectedSource === 'mysql' ? 'secondary' : 'ghost'} 
-                          className="w-full justify-start" 
-                          onClick={() => setSelectedSource('mysql')}
-                        >
-                          <Database className="h-4 w-4 mr-2" />
-                          MySQL
-                        </Button>
-                        <Button 
-                          variant={selectedSource === 'postgresql' ? 'secondary' : 'ghost'} 
-                          className="w-full justify-start"
-                          onClick={() => setSelectedSource('postgresql')}
-                        >
-                          <Database className="h-4 w-4 mr-2" />
-                          PostgreSQL
-                        </Button>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="mb-2 text-sm font-medium text-gray-500">大数据平台</h3>
-                      <div className="space-y-1">
-                        <Button 
-                          variant={selectedSource === 'hadoop' ? 'secondary' : 'ghost'} 
-                          className="w-full justify-start"
-                          onClick={() => setSelectedSource('hadoop')}
-                        >
-                          <HardDrive className="h-4 w-4 mr-2" />
-                          Hadoop HDFS
-                        </Button>
-                        <Button 
-                          variant={selectedSource === 'spark' ? 'secondary' : 'ghost'} 
-                          className="w-full justify-start"
-                          onClick={() => setSelectedSource('spark')}
-                        >
-                          <Server className="h-4 w-4 mr-2" />
-                          Spark
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </ScrollArea>
+                </SidebarProvider>
               </div>
-
-              {/* Middle Section - Data Source List */}
-              <div className="flex-1 bg-gray-50">
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">数据源列表</h2>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-1" />
-                      添加连接
-                    </Button>
+            ) : (
+              <div className="flex h-full">
+                {/* Left Sidebar - Data Sources */}
+                <div className="w-64 border-r border-gray-200 bg-white">
+                  <div className="p-4">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input placeholder="搜索数据源..." className="pl-8" />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {selectedSource && (
-                      <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <Database className="h-5 w-5 mr-2 text-blue-600" />
-                            <div>
-                              <h3 className="font-medium">生产环境 MySQL</h3>
-                              <p className="text-sm text-gray-500">mysql://prod.example.com:3306</p>
-                            </div>
-                          </div>
-                          <Button variant="ghost" size="sm">
-                            <ArrowRight className="h-4 w-4" />
+                  <ScrollArea className="h-[calc(100vh-8rem)]">
+                    <div className="space-y-4 p-4">
+                      <div>
+                        <h3 className="mb-2 text-sm font-medium text-gray-500">关系型数据库</h3>
+                        <div className="space-y-1">
+                          <Button 
+                            variant={selectedSource === 'mysql' ? 'secondary' : 'ghost'} 
+                            className="w-full justify-start" 
+                            onClick={() => handleSourceSelect('mysql')}
+                          >
+                            <Database className="h-4 w-4 mr-2" />
+                            MySQL
+                          </Button>
+                          <Button 
+                            variant={selectedSource === 'postgresql' ? 'secondary' : 'ghost'} 
+                            className="w-full justify-start"
+                            onClick={() => handleSourceSelect('postgresql')}
+                          >
+                            <Database className="h-4 w-4 mr-2" />
+                            PostgreSQL
                           </Button>
                         </div>
-                      </Card>
-                    )}
+                      </div>
+                      <div>
+                        <h3 className="mb-2 text-sm font-medium text-gray-500">大数据平台</h3>
+                        <div className="space-y-1">
+                          <Button 
+                            variant={selectedSource === 'hadoop' ? 'secondary' : 'ghost'} 
+                            className="w-full justify-start"
+                            onClick={() => handleSourceSelect('hadoop')}
+                          >
+                            <HardDrive className="h-4 w-4 mr-2" />
+                            Hadoop HDFS
+                          </Button>
+                          <Button 
+                            variant={selectedSource === 'spark' ? 'secondary' : 'ghost'} 
+                            className="w-full justify-start"
+                            onClick={() => handleSourceSelect('spark')}
+                          >
+                            <Server className="h-4 w-4 mr-2" />
+                            Spark
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Middle Section - Data Source List */}
+                <div className="flex-1 bg-gray-50">
+                  <div className="p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-lg font-semibold">数据源列表</h2>
+                      <Button size="sm" onClick={() => setShowSourceConfig(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        添加连接
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4">
+                      {selectedSource && (
+                        <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setIsDesigningFlow(true)}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <Database className="h-5 w-5 mr-2 text-blue-600" />
+                              <div>
+                                <h3 className="font-medium">生产环境 MySQL</h3>
+                                <p className="text-sm text-gray-500">mysql://prod.example.com:3306</p>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm">
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </Card>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Right Section - Connection Details */}
-              {selectedSource && (
-                <div className="w-96 border-l border-gray-200 bg-white">
-                  <div className="p-4">
-                    <h2 className="text-lg font-semibold mb-4">连接配置</h2>
-                    <div className="space-y-4">
+                {/* Right Sheet - Connection Details */}
+                <Sheet open={showSourceConfig} onOpenChange={setShowSourceConfig}>
+                  <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+                    <SheetHeader>
+                      <SheetTitle>配置数据源连接</SheetTitle>
+                    </SheetHeader>
+                    <div className="space-y-4 mt-4">
                       <div>
                         <label className="text-sm font-medium">连接名称</label>
                         <Input placeholder="请输入连接名称" />
@@ -167,14 +191,19 @@ export default function DataMirrorDesigner() {
                         <label className="text-sm font-medium">数据库名</label>
                         <Input />
                       </div>
-                      <Button className="w-full">
-                        测试连接
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button className="flex-1" onClick={() => setShowSourceConfig(false)} variant="outline">
+                          取消
+                        </Button>
+                        <Button className="flex-1" onClick={handleSourceConfigComplete}>
+                          确认
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="monitor" className="flex-1 h-full m-0 p-0">

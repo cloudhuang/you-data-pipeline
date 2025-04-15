@@ -1,9 +1,9 @@
-import DataMirrorDesigner from "./components/data-mirror-designer"
+import EnhancedETLDesigner from "./components/enhanced-etl-designer"
 
 export default function Home() {
   return (
     <main className="h-screen bg-gray-50">
-      <DataMirrorDesigner />
+      <EnhancedETLDesigner />
     </main>
   )
 }
