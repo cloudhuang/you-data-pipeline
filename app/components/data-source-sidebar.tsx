@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Search, Database, Server, FileText, Globe, HardDrive } from "lucide-react"
+import { Search, Database, Server, FileText, Globe, HardDrive, Clock, Shield, BarChart } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,7 @@ import {
   SidebarInput,
 } from "@/components/ui/sidebar"
 
-// Define data source types
+// 定义数据源类型
 const dataSources = {
   jdbc: [
     { id: "mysql", name: "MySQL", icon: Database, color: "#00758F" },
@@ -56,6 +56,22 @@ const dataSources = {
   ],
 }
 
+// 同步策略
+const syncStrategies = [
+  { id: "full", name: "全量同步", description: "完整复制源数据", icon: Clock },
+  { id: "incremental", name: "增量同步", description: "基于时间戳或主键", icon: Clock },
+  { id: "cdc", name: "CDC实时同步", description: "实时捕获数据变更", icon: Clock },
+  { id: "hybrid", name: "混合模式", description: "先全量后增量", icon: Clock },
+]
+
+// 数据质量规则
+const qualityRules = [
+  { id: "completeness", name: "完整性检查", description: "检查必填字段是否有空值", icon: Shield },
+  { id: "consistency", name: "一致性验证", description: "验证源目标数据一致性", icon: Shield },
+  { id: "validity", name: "有效性检查", description: "检查数据是否符合业务规则", icon: Shield },
+  { id: "accuracy", name: "准确性检查", description: "检查数据是否准确反映业务事实", icon: Shield },
+]
+
 interface DataSourceSidebarProps {
   onSelectNode: (node: any) => void
 }
@@ -88,11 +104,14 @@ export default function DataSourceSidebar({ onSelectNode }: DataSourceSidebarPro
     <Sidebar className="border-r border-gray-200">
       <SidebarHeader>
         <div className="p-2">
-          <h2 className="text-xl font-bold mb-2">Data Pipeline Designer</h2>
+          <h2 className="text-xl font-bold mb-2 flex items-center">
+            <Database className="h-5 w-5 mr-2 text-blue-600" />
+            数据源管理
+          </h2>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <SidebarInput
-              placeholder="Search data sources..."
+              placeholder="搜索数据源..."
               className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -102,22 +121,22 @@ export default function DataSourceSidebar({ onSelectNode }: DataSourceSidebarPro
       </SidebarHeader>
       <SidebarContent>
         {Object.entries(filteredSources).length === 0 && searchTerm && (
-          <div className="p-4 text-center text-gray-500">No data sources found</div>
+          <div className="p-4 text-center text-gray-500">未找到数据源</div>
         )}
 
         {Object.entries(filteredSources).map(([category, sources]) => (
           <SidebarGroup key={category}>
             <SidebarGroupLabel className="capitalize">
               {category === "jdbc"
-                ? "Relational Databases"
+                ? "关系型数据库"
                 : category === "bigdata"
-                  ? "Big Data"
+                  ? "大数据平台"
                   : category === "nosql"
-                    ? "NoSQL Databases"
+                    ? "NoSQL数据库"
                     : category === "file"
-                      ? "File Systems"
+                      ? "文件系统"
                       : category === "api"
-                        ? "APIs & Message Queues"
+                        ? "API与消息队列"
                         : category}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -141,37 +160,56 @@ export default function DataSourceSidebar({ onSelectNode }: DataSourceSidebarPro
         ))}
 
         <SidebarGroup>
-          <SidebarGroupLabel>Transformations</SidebarGroupLabel>
+          <SidebarGroupLabel>同步策略</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {syncStrategies.map((strategy) => (
+                <SidebarMenuItem key={strategy.id}>
+                  <SidebarMenuButton className="cursor-pointer">
+                    <strategy.icon className="h-4 w-4 mr-2 shrink-0 text-blue-600" />
+                    <div className="flex flex-col">
+                      <span>{strategy.name}</span>
+                      <span className="text-xs text-gray-500">{strategy.description}</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>数据转换</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   draggable
-                  onDragStart={(e) => handleDragStart(e, "transform", { id: "filter", name: "Filter" })}
-                  onClick={() => handleNodeClick("transform", { id: "filter", name: "Filter" })}
+                  onDragStart={(e) => handleDragStart(e, "transform", { id: "filter", name: "数据过滤" })}
+                  onClick={() => handleNodeClick("transform", { id: "filter", name: "数据过滤" })}
                   className="cursor-grab"
                 >
-                  <span>Filter</span>
+                  <span>数据过滤</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   draggable
-                  onDragStart={(e) => handleDragStart(e, "transform", { id: "join", name: "Join" })}
-                  onClick={() => handleNodeClick("transform", { id: "join", name: "Join" })}
+                  onDragStart={(e) => handleDragStart(e, "transform", { id: "join", name: "数据关联" })}
+                  onClick={() => handleNodeClick("transform", { id: "join", name: "数据关联" })}
                   className="cursor-grab"
                 >
-                  <span>Join</span>
+                  <span>数据关联</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   draggable
-                  onDragStart={(e) => handleDragStart(e, "transform", { id: "aggregate", name: "Aggregate" })}
-                  onClick={() => handleNodeClick("transform", { id: "aggregate", name: "Aggregate" })}
+                  onDragStart={(e) => handleDragStart(e, "transform", { id: "aggregate", name: "数据聚合" })}
+                  onClick={() => handleNodeClick("transform", { id: "aggregate", name: "数据聚合" })}
                   className="cursor-grab"
                 >
-                  <span>Aggregate</span>
+                  <span>数据聚合</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -179,29 +217,48 @@ export default function DataSourceSidebar({ onSelectNode }: DataSourceSidebarPro
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Destinations</SidebarGroupLabel>
+          <SidebarGroupLabel>数据质量</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {qualityRules.map((rule) => (
+                <SidebarMenuItem key={rule.id}>
+                  <SidebarMenuButton className="cursor-pointer">
+                    <rule.icon className="h-4 w-4 mr-2 shrink-0 text-green-600" />
+                    <div className="flex flex-col">
+                      <span>{rule.name}</span>
+                      <span className="text-xs text-gray-500">{rule.description}</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>贴源层</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   draggable
-                  onDragStart={(e) => handleDragStart(e, "destination", { id: "warehouse", name: "Data Warehouse" })}
-                  onClick={() => handleNodeClick("destination", { id: "warehouse", name: "Data Warehouse" })}
+                  onDragStart={(e) => handleDragStart(e, "destination", { id: "warehouse", name: "数据仓库贴源层" })}
+                  onClick={() => handleNodeClick("destination", { id: "warehouse", name: "数据仓库贴源层" })}
                   className="cursor-grab"
                 >
-                  <Database className="h-4 w-4 mr-2 shrink-0" />
-                  <span>Data Warehouse</span>
+                  <Database className="h-4 w-4 mr-2 shrink-0 text-green-600" />
+                  <span>数据仓库贴源层</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   draggable
-                  onDragStart={(e) => handleDragStart(e, "destination", { id: "lake", name: "Data Lake" })}
-                  onClick={() => handleNodeClick("destination", { id: "lake", name: "Data Lake" })}
+                  onDragStart={(e) => handleDragStart(e, "destination", { id: "lake", name: "数据湖贴源层" })}
+                  onClick={() => handleNodeClick("destination", { id: "lake", name: "数据湖贴源层" })}
                   className="cursor-grab"
                 >
-                  <HardDrive className="h-4 w-4 mr-2 shrink-0" />
-                  <span>Data Lake</span>
+                  <HardDrive className="h-4 w-4 mr-2 shrink-0 text-green-600" />
+                  <span>数据湖贴源层</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
