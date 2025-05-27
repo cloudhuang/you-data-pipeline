@@ -414,53 +414,17 @@ export default function EnhancedETLDesigner() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* 头部导航 */}
-      <header className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center">
-          <Database className="h-6 w-6 mr-2 text-blue-600" />
-          <h1 className="text-xl font-bold">ETL设计器</h1>
-          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">增强版</span>
-        </div>
-        
-        <div className="flex space-x-4">
-          <Button 
-            variant={activeTab === "design" ? "default" : "ghost"}
-            onClick={() => setActiveTab("design")}
-          >
-            设计器
-          </Button>
-          <Button 
-            variant={activeTab === "monitor" ? "default" : "ghost"}
-            onClick={() => setActiveTab("monitor")}
-          >
-            监控
-          </Button>
-          <Button 
-            variant={activeTab === "quality" ? "default" : "ghost"}
-            onClick={() => setActiveTab("quality")}
-          >
-            数据质量
-          </Button>
-          <Button 
-            variant={activeTab === "settings" ? "default" : "ghost"}
-            onClick={() => setActiveTab("settings")}
-          >
-            系统设置
-          </Button>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
-            <Save className="h-4 w-4 mr-1" />
-            保存
-          </Button>
-          <Button size="sm">
-            <Play className="h-4 w-4 mr-1" />
-            运行
-          </Button>
-        </div>
-      </header>
-
+      {/* 执行按钮区浮动在画布右上角 */}
+      <div style={{ position: 'absolute', top: 60, right: 24, zIndex: 20 }} className="flex items-center space-x-2">
+        <Button variant="outline" size="sm">
+          <Save className="h-4 w-4 mr-1" />
+          保存
+        </Button>
+        <Button size="sm">
+          <Play className="h-4 w-4 mr-1" />
+          运行
+        </Button>
+      </div>
       {/* 主要内容区域 */}
       <div className="flex-1 flex overflow-hidden">
         {activeTab === "design" && (
@@ -616,6 +580,7 @@ export default function EnhancedETLDesigner() {
                 elementsSelectable={true}
                 deleteKeyCode={["Delete", "Backspace"]}
                 proOptions={{ hideAttribution: true }}
+                defaultViewport={{ x: 0, y: 0, zoom: 0.3 }}
               >
                 <Controls />
                 <MiniMap />
