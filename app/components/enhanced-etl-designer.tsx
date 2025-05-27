@@ -277,6 +277,18 @@ export default function EnhancedETLDesigner() {
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null)
   const [isConfigOpen, setIsConfigOpen] = useState(false)
 
+  // 处理拖拽开始
+  const onDragStart = useCallback((event: React.DragEvent, nodeType: string, nodeData: any) => {
+    event.dataTransfer.setData('application/reactflow', nodeType);
+    event.dataTransfer.setData('nodeData', JSON.stringify(nodeData));
+    event.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  // 处理拖拽结束
+  const onDragEnd = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+  }, []);
+
   // 处理拖拽
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -473,16 +485,32 @@ export default function EnhancedETLDesigner() {
                     <div className="space-y-1">
                       <Button 
                         variant={selectedSource === 'mysql' ? 'secondary' : 'ghost'} 
-                        className="w-full justify-start" 
-                        onClick={() => handleSourceSelect('mysql')}
+                        className="w-full justify-start cursor-move" 
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'jdbc', { 
+                          id: 'mysql', 
+                          name: 'MySQL',
+                          description: 'MySQL 数据库连接',
+                          type: 'jdbc',
+                          color: '#3b82f6'
+                        })}
+                        onDragEnd={onDragEnd}
                       >
                         <Database className="h-4 w-4 mr-2" />
                         MySQL
                       </Button>
                       <Button 
                         variant={selectedSource === 'postgresql' ? 'secondary' : 'ghost'} 
-                        className="w-full justify-start"
-                        onClick={() => handleSourceSelect('postgresql')}
+                        className="w-full justify-start cursor-move"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'jdbc', { 
+                          id: 'postgresql', 
+                          name: 'PostgreSQL',
+                          description: 'PostgreSQL 数据库连接',
+                          type: 'jdbc',
+                          color: '#3b82f6'
+                        })}
+                        onDragEnd={onDragEnd}
                       >
                         <Database className="h-4 w-4 mr-2" />
                         PostgreSQL
@@ -492,11 +520,35 @@ export default function EnhancedETLDesigner() {
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-gray-500">转换</h3>
                     <div className="space-y-1">
-                      <Button variant="ghost" className="w-full justify-start">
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start cursor-move"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'transform', { 
+                          id: 'field-mapping', 
+                          name: '字段映射',
+                          description: '字段映射转换',
+                          type: 'transform',
+                          color: '#8b5cf6'
+                        })}
+                        onDragEnd={onDragEnd}
+                      >
                         <FileText className="h-4 w-4 mr-2" />
                         字段映射
                       </Button>
-                      <Button variant="ghost" className="w-full justify-start">
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start cursor-move"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'transform', { 
+                          id: 'json-process', 
+                          name: 'JSON处理',
+                          description: 'JSON数据转换',
+                          type: 'transform',
+                          color: '#8b5cf6'
+                        })}
+                        onDragEnd={onDragEnd}
+                      >
                         <FileJson className="h-4 w-4 mr-2" />
                         JSON处理
                       </Button>
@@ -505,11 +557,35 @@ export default function EnhancedETLDesigner() {
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-gray-500">目标</h3>
                     <div className="space-y-1">
-                      <Button variant="ghost" className="w-full justify-start">
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start cursor-move"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'jdbc', { 
+                          id: 'database-dest', 
+                          name: '数据库',
+                          description: '数据库目标',
+                          type: 'jdbc',
+                          color: '#10b981'
+                        })}
+                        onDragEnd={onDragEnd}
+                      >
                         <Database className="h-4 w-4 mr-2" />
                         数据库
                       </Button>
-                      <Button variant="ghost" className="w-full justify-start">
+                      <Button 
+                        variant="ghost" 
+                        className="w-full justify-start cursor-move"
+                        draggable
+                        onDragStart={(e) => onDragStart(e, 'api', { 
+                          id: 'api-dest', 
+                          name: 'API 目标',
+                          description: 'API 目标连接',
+                          type: 'api',
+                          color: '#ec4899'
+                        })}
+                        onDragEnd={onDragEnd}
+                      >
                         <Globe className="h-4 w-4 mr-2" />
                         API
                       </Button>
@@ -532,8 +608,14 @@ export default function EnhancedETLDesigner() {
                 onInit={setReactFlowInstance}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
+                onDragEnd={onDragEnd}
                 nodeTypes={nodeTypes}
                 fitView
+                nodesDraggable={true}
+                nodesConnectable={true}
+                elementsSelectable={true}
+                deleteKeyCode={["Delete", "Backspace"]}
+                proOptions={{ hideAttribution: true }}
               >
                 <Controls />
                 <MiniMap />
