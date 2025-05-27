@@ -12,9 +12,14 @@ export default function Home() {
         <p className="text-lg text-gray-600 mb-8">
           使用可视化工具轻松创建和管理您的数据流程
         </p>
-        <Link href="/workflow" className="bg-blue-600 text-white px-6 py-3 rounded-md text-lg font-semibold hover:bg-blue-700 transition">
-          进入设计器
-        </Link>
+        <div className="space-y-4">
+          <Link href="/workflow" className="bg-blue-600 text-white px-6 py-3 rounded-md text-lg font-semibold hover:bg-blue-700 transition">
+            进入设计器
+          </Link>
+          <Link href="/data-sources" className="bg-green-600 text-white px-6 py-3 rounded-md text-lg font-semibold hover:bg-green-700 transition">
+            配置数据源
+          </Link>
+        </div>
       </div>
     </main>
   )

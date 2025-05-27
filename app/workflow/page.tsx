@@ -1,6 +1,7 @@
 "use client"
 
-import EnhancedETLDesigner from "@/app/components/enhanced-etl-designer"
+import EnhancedETLDesigner from "./_components/enhanced-etl-designer"
+
 
 export default function WorkflowPage() {
   return (
