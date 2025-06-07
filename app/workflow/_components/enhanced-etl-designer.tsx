@@ -21,7 +21,6 @@ import ReactFlow, {
   BackgroundVariant,
   ReactFlowInstance,
 } from "reactflow"
-import "reactflow/dist/style.css"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
