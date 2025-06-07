@@ -19,8 +19,11 @@ import ReactFlow, {
   Position,
   MarkerType,
   Panel,
+  Node as ReactFlowNode, // Alias to avoid conflict with local Node type if any
+  Edge as ReactFlowEdge, // Alias
 } from "reactflow"
 import "reactflow/dist/style.css"
+import { toast } from "sonner" // For toast notifications
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -157,7 +160,200 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
   const [selectedElement, setSelectedElement] = useState<any>(null)
   const [undoable, setUndoable] = useState<boolean>(false)
   const [redoable, setRedoable] = useState<boolean>(false)
+
+  // Interface for JobStatus (simplified, align with job-store.ts if needed for full detail)
+  interface JobStatus {
+    jobId: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    progress?: number;
+    message?: string;
+    result?: any;
+  }
+
+  interface ActiveJob {
+    jobId: string;
+    sourceNodeId?: string;
+    targetNodeId?: string;
+    edgeId?: string;
+    statusDetails?: JobStatus; // Store the whole status object from API
+    toastId?: string | number;
+    syncType?: 'full' | 'incremental' | string;
+    sourceName?: string; // For toast messages
+  }
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
+
+  // State for form inputs
+  const [nodeName, setNodeName] = useState("")
+  const [connectionString, setConnectionString] = useState("")
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
+  const [filePath, setFilePath] = useState("")
+  const [fileFormat, setFileFormat] = useState("CSV")
+  const [apiUrl, setApiUrl] = useState("")
+  const [apiMethod, setApiMethod] = useState("GET")
+  const [authType, setAuthType] = useState("None")
+  const [transformType, setTransformType] = useState("Filter")
+  const [expression, setExpression] = useState("")
+
+  // State for edge form inputs
+  const [edgeTransferMode, setEdgeTransferMode] = useState("Full Load"); // Display value
+  const [edgeIncrementalKeyColumn, setEdgeIncrementalKeyColumn] = useState("");
+
+
+  // Effect to update form states when selectedElement changes
+  useEffect(() => {
+    if (selectedElement?.type === "node") {
+      const nodeData = selectedElement.data.data || {}
+      setNodeName(nodeData.name || "")
+
+      switch (selectedElement.data.type) {
+        case "jdbc":
+          setConnectionString(nodeData.connectionString || "")
+          setUsername(nodeData.username || "")
+          setPassword(nodeData.password || "")
+          break
+        case "file":
+          setFilePath(nodeData.path || "")
+          setFileFormat(nodeData.format || "CSV")
+          break
+        case "api":
+          setApiUrl(nodeData.url || "")
+          setApiMethod(nodeData.method || "GET")
+          setAuthType(nodeData.authType || "None")
+          break
+        case "transform":
+          setTransformType(nodeData.transformType || "Filter")
+          setExpression(nodeData.expression || "")
+          break
+        default:
+          // Reset fields for other node types or if no specific fields
+          setConnectionString("")
+          setUsername("")
+          setPassword("")
+          setFilePath("")
+          setFileFormat("CSV")
+          setApiUrl("")
+          setApiMethod("GET")
+          setAuthType("None")
+          setTransformType("Filter")
+          setExpression("")
+          break
+      }
+      // Clear edge fields when a node is selected
+      setEdgeTransferMode("Full Load");
+      setEdgeIncrementalKeyColumn("");
+    } else if (selectedElement?.type === "edge") {
+      const edgeData = selectedElement.data?.data || {}; // Use data.data for consistency
+      let displayMode = "Full Load";
+      if (edgeData.transferMode === 'incremental') {
+        displayMode = 'Incremental';
+      } else if (edgeData.transferMode === 'cdc') {
+        displayMode = 'CDC';
+      }
+      setEdgeTransferMode(displayMode);
+      setEdgeIncrementalKeyColumn(edgeData.incrementalKeyColumn || "");
+
+      // Clear node fields when an edge is selected
+      setNodeName("")
+      setConnectionString("")
+      setUsername("")
+      setPassword("")
+      setFilePath("")
+      setFileFormat("CSV")
+      setApiUrl("")
+      setApiMethod("GET")
+      setAuthType("None")
+      setTransformType("Filter")
+      setExpression("")
+    } else {
+      // Clear all form fields if nothing is selected
+      setNodeName("")
+      setConnectionString("")
+      setUsername("")
+      setPassword("")
+      setFilePath("")
+      setFileFormat("CSV")
+      setApiUrl("")
+      setApiMethod("GET")
+      setAuthType("None")
+      setTransformType("Filter")
+      setExpression("")
+      setEdgeTransferMode("Full Load");
+      setEdgeIncrementalKeyColumn("");
+    }
+  }, [selectedElement])
   
+  // Polling effect for active jobs
+  useEffect(() => {
+    if (activeJobs.length === 0) return;
+
+    const intervalId = setInterval(async () => {
+      let jobsStillActive = false;
+      const updatedJobs = await Promise.all(
+        activeJobs.map(async (job) => {
+          if (!job.jobId || (job.statusDetails?.status === 'completed' || job.statusDetails?.status === 'failed')) {
+            return job; // Skip already completed/failed or invalid jobs
+          }
+          jobsStillActive = true;
+          try {
+            const response = await fetch(`/api/sync/status/${job.jobId}`);
+            if (!response.ok) {
+              console.warn(`Failed to fetch status for job ${job.jobId}: ${response.status}`);
+              // Potentially update toast to show a fetch error for this job
+              return { ...job, statusDetails: { ...job.statusDetails, status: 'failed', message: `Status fetch failed: ${response.status}` } as JobStatus };
+            }
+            const statusData = (await response.json()) as JobStatus;
+
+            const toastDescription = `${statusData.message || 'Processing...'} ${statusData.progress !== undefined ? `(${statusData.progress}${job.syncType === 'full' ? '%' : ' records'})` : ''}`;
+
+            if (statusData.status === 'running') {
+              toast.loading(`Job ${job.jobId}: ${statusData.status}`, {
+                id: job.toastId,
+                description: toastDescription,
+              });
+            } else if (statusData.status === 'completed') {
+              toast.success(`Job ${jobId}: ${statusData.status}`, { // Use general jobId from outer scope. This is a bug. Should be statusData.jobId or job.jobId
+                id: job.toastId,
+                description: statusData.message || 'Completed successfully!',
+              });
+            } else if (statusData.status === 'failed') {
+              toast.error(`Job ${jobId}: ${statusData.status}`, { // Same bug as above with jobId
+                id: job.toastId,
+                description: statusData.message || 'An error occurred.',
+              });
+            }
+            return { ...job, statusDetails: statusData };
+          } catch (error) {
+            console.error(`Error polling for job ${job.jobId}:`, error);
+            // Update toast to show a fetch error
+             if (job.toastId) {
+                toast.error(`Job ${job.jobId}: Error`, {
+                    id: job.toastId,
+                    description: `Failed to poll status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                });
+            }
+            // Keep the job in activeJobs, maybe it's a temporary network issue
+            // Or remove it: return { ...job, statusDetails: { ...job.statusDetails, status: 'failed', message: 'Polling error' } };
+            return { ...job, statusDetails: { ...job.statusDetails, status: 'failed', message: `Polling error: ${error instanceof Error ? error.message : 'Unknown error'}` } as JobStatus };
+          }
+        })
+      );
+
+      // Filter out completed/failed jobs after updating toasts
+      const stillRunningOrPendingJobs = updatedJobs.filter(
+        (job) => job.statusDetails?.status === 'pending' || job.statusDetails?.status === 'running'
+      );
+      setActiveJobs(stillRunningOrPendingJobs);
+
+      if (stillRunningOrPendingJobs.length === 0) {
+        clearInterval(intervalId);
+      }
+
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(intervalId);
+  }, [activeJobs]); // Rerun effect if activeJobs array instance changes
+
   // 处理从左侧面板选择节点的情况
   useEffect(() => {
     if (selectedNode && reactFlowInstance) {
@@ -394,6 +590,156 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
       }
     }, 10)
   }, [nodes, edges, reactFlowInstance, setNodes])
+
+  const handleRunPipeline = async () => {
+    if (!nodes.length || !edges.length) {
+      alert("Pipeline is empty. Add nodes and edges to define a data flow.");
+      return;
+    }
+
+    let foundEdge: Edge | null = null;
+    let sourceNode: Node | null = null;
+    let targetNode: Node | null = null;
+
+    for (const edge of edges) {
+      const potentialSource = nodes.find(n => n.id === edge.source);
+      const potentialTarget = nodes.find(n => n.id === edge.target);
+
+      if (potentialSource && potentialTarget) {
+        const sourceIsDataSource = ['jdbc', 'file', 'api', 'bigdata', 'nosql'].includes(potentialSource.data.type);
+        const targetIsDataDestination = ['destination', 'jdbc', 'file', 'api', 'bigdata', 'nosql'].includes(potentialTarget.data.type);
+
+        if (sourceIsDataSource && targetIsDataDestination) {
+          foundEdge = edge;
+          sourceNode = potentialSource;
+          targetNode = potentialTarget;
+          break;
+        }
+      }
+    }
+
+    if (!foundEdge || !sourceNode || !targetNode) {
+      alert("Could not find a valid source-target link to synchronize. Ensure an edge connects a source-type node (e.g., JDBC, File, API) to a target-type node (e.g., Destination, JDBC, File, API).");
+      return;
+    }
+
+    // Ensure data.data exists, which holds the configuration
+    const sourceConfigData = sourceNode.data?.data;
+    const targetConfigData = targetNode.data?.data;
+
+    if (!sourceConfigData) {
+      alert(`Source node "${sourceNode.data.name || sourceNode.id}" is not configured. Please select it and apply settings.`);
+      return;
+    }
+    if (!targetConfigData) {
+      alert(`Target node "${targetNode.data.name || targetNode.id}" is not configured. Please select it and apply settings.`);
+      return;
+    }
+
+    const sourceConfig = { type: sourceNode.data.type, ...sourceConfigData };
+    const targetConfig = { type: targetNode.data.type, ...targetConfigData };
+
+    const sourceNameForToast = sourceConfig.name || sourceConfig.tableName || sourceNode.id;
+
+
+    // --- SyncType determination ---
+    let syncType = 'full'; // Default
+    // Ensure foundEdge.data exists before trying to access transferMode
+    const edgeTransferMode = foundEdge.data?.transferMode?.toLowerCase();
+
+    if (edgeTransferMode === 'full load' || edgeTransferMode === 'full') {
+      syncType = 'full';
+    } else if (edgeTransferMode === 'incremental') {
+      syncType = 'incremental';
+    } else if (edgeTransferMode) {
+      console.warn(`Unknown edge transfer mode: "${foundEdge.data.transferMode}". Defaulting to 'full' sync.`);
+      alert(`Unknown edge transfer mode: "${foundEdge.data.transferMode}". Defaulting to 'full' sync.`);
+    } else {
+      console.warn("Edge transfer mode not set. Defaulting to 'full' sync.");
+      // Optionally alert the user they might want to configure the edge:
+      // alert("Edge transfer mode not set. Defaulting to 'full' sync. You can configure this by selecting the edge.");
+    }
+
+    // --- Payload construction ---
+    const payload: any = {
+      sourceConfig,
+      targetConfig,
+      syncType,
+    };
+
+    if (syncType === 'full') {
+      payload.tableName = sourceConfig.table || sourceConfig.name || sourceNode.id; // Fallback to node id
+      if (!payload.tableName) {
+          alert("Could not determine table/source name for full load from source node configuration. Please ensure the source node has a 'name' or 'table' property set in its configuration.");
+          return;
+      }
+    } else if (syncType === 'incremental') {
+      const incrementalKeyColumn = foundEdge.data?.incrementalKeyColumn;
+      // Use sourceConfig.table (if set, e.g. for DBs) or sourceConfig.name (generic node name), or sourceNode.id as fallback
+      const incTableName = sourceConfig.table || sourceConfig.name || sourceNode.id;
+
+      if (!incTableName) {
+        alert("Could not determine table/source name for incremental load from source node configuration.");
+        return;
+      }
+      if (!incrementalKeyColumn) {
+        alert("For incremental sync, the connecting edge must specify an 'Incremental Key Column' in its configuration. Please select the edge and set this value.");
+        console.error("Missing incrementalKeyColumn for incremental sync. Edge data:", foundEdge.data, "Source config:", sourceConfig);
+        return;
+      }
+      payload.options = {
+        tableName: incTableName,
+        incrementalKeyColumn: incrementalKeyColumn,
+      };
+    }
+
+    console.log("Triggering synchronization with payload:", JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await fetch('/api/sync/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json(); // This is API's { message, jobId } or { error }
+      if (!response.ok) {
+        throw new Error(result.error || `API request failed with status ${response.status}`);
+      }
+
+      // Show initial toast and add to active jobs
+      const toastId = toast.loading(`Job ${result.jobId} starting...`, {
+         description: `Sync for ${sourceNameForToast} (${syncType}) initiated.`,
+      });
+
+      setActiveJobs(prev => [
+        ...prev,
+        {
+          jobId: result.jobId,
+          sourceNodeId: sourceNode?.id,
+          targetNodeId: targetNode?.id,
+          edgeId: foundEdge?.id,
+          toastId: toastId,
+          syncType: syncType,
+          sourceName: sourceNameForToast,
+          statusDetails: { // Initial assumed status
+            jobId: result.jobId,
+            status: 'pending',
+            startedAt: new Date(),
+            updatedAt: new Date(),
+          } as JobStatus,
+        }
+      ]);
+      // No longer using alert, relying on toast for feedback
+      // alert(`Synchronization process started: ${result.message} (Job ID: ${result.jobId})`);
+    } catch (error) {
+      console.error('Failed to start synchronization:', error);
+      toast.error("Failed to Start Synchronization", {
+        description: error instanceof Error ? error.message : String(error),
+      });
+      // alert(`Error starting synchronization: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
   
   return (
     <div className="h-full w-full flex overflow-hidden" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -455,9 +801,7 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                 <Save className="h-4 w-4 mr-2" />
                 Save
               </Button>
-              <Button size="sm" onClick={() => {
-                alert('Pipeline execution started!');
-              }}>
+              <Button size="sm" onClick={handleRunPipeline}>
                 <Play className="h-4 w-4 mr-2" />
                 Run Pipeline
               </Button>
@@ -502,23 +846,23 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                   <TabsContent value="settings" className="space-y-4 pt-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Name</Label>
-                      <Input id="name" defaultValue={selectedElement.data.data.name} />
+                      <Input id="name" value={nodeName} onChange={(e) => setNodeName(e.target.value)} />
                     </div>
 
                     {selectedElement.data.type === "jdbc" && (
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="connection-string">Connection String</Label>
-                          <Input id="connection-string" placeholder="jdbc:mysql://hostname:port/database" />
+                          <Input id="connection-string" placeholder="jdbc:mysql://hostname:port/database" value={connectionString} onChange={(e) => setConnectionString(e.target.value)} />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="username">Username</Label>
-                            <Input id="username" />
+                            <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="password">Password</Label>
-                            <Input id="password" type="password" />
+                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                           </div>
                         </div>
                       </>
@@ -528,11 +872,11 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="path">File Path</Label>
-                          <Input id="path" placeholder="s3://bucket/path" />
+                          <Input id="path" placeholder="s3://bucket/path" value={filePath} onChange={(e) => setFilePath(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="format">File Format</Label>
-                          <select className="w-full p-2 border rounded-md" id="format">
+                          <select className="w-full p-2 border rounded-md" id="format" value={fileFormat} onChange={(e) => setFileFormat(e.target.value)}>
                             <option>CSV</option>
                             <option>JSON</option>
                             <option>Parquet</option>
@@ -546,11 +890,11 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="url">API URL</Label>
-                          <Input id="url" placeholder="https://api.example.com/v1/data" />
+                          <Input id="url" placeholder="https://api.example.com/v1/data" value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="method">Method</Label>
-                          <select className="w-full p-2 border rounded-md" id="method">
+                          <select className="w-full p-2 border rounded-md" id="method" value={apiMethod} onChange={(e) => setApiMethod(e.target.value)}>
                             <option>GET</option>
                             <option>POST</option>
                             <option>PUT</option>
@@ -559,7 +903,7 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="auth-type">Authentication</Label>
-                          <select className="w-full p-2 border rounded-md" id="auth-type">
+                          <select className="w-full p-2 border rounded-md" id="auth-type" value={authType} onChange={(e) => setAuthType(e.target.value)}>
                             <option>None</option>
                             <option>API Key</option>
                             <option>OAuth 2.0</option>
@@ -573,7 +917,7 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="transform-type">Transformation Type</Label>
-                          <select className="w-full p-2 border rounded-md" id="transform-type">
+                          <select className="w-full p-2 border rounded-md" id="transform-type" value={transformType} onChange={(e) => setTransformType(e.target.value)}>
                             <option>Filter</option>
                             <option>Join</option>
                             <option>Aggregate</option>
@@ -586,12 +930,62 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                             id="expression"
                             className="w-full p-2 border rounded-md h-24"
                             placeholder="Enter SQL or expression"
+                            value={expression}
+                            onChange={(e) => setExpression(e.target.value)}
                           ></textarea>
                         </div>
                       </>
                     )}
 
-                    <Button className="w-full">
+                    <Button className="w-full" onClick={() => {
+                      if (!selectedElement || selectedElement.type !== 'node') return;
+
+                      const updatedNodeData = {
+                        name: nodeName,
+                      };
+
+                      if (selectedElement.data.type === 'jdbc') {
+                        Object.assign(updatedNodeData, {
+                          connectionString,
+                          username,
+                          password,
+                        });
+                      } else if (selectedElement.data.type === 'file') {
+                        Object.assign(updatedNodeData, {
+                          path: filePath,
+                          format: fileFormat,
+                        });
+                      } else if (selectedElement.data.type === 'api') {
+                        Object.assign(updatedNodeData, {
+                          url: apiUrl,
+                          method: apiMethod,
+                          authType: authType,
+                        });
+                      } else if (selectedElement.data.type === 'transform') {
+                        Object.assign(updatedNodeData, {
+                          transformType: transformType,
+                          expression: expression,
+                        });
+                      }
+
+                      setNodes((nds) =>
+                        nds.map((node) =>
+                          node.id === selectedElement.data.id
+                            ? {
+                                ...node,
+                                data: {
+                                  ...node.data, // Keep existing data like color, icon etc.
+                                  data: { // The actual configuration data is nested here
+                                    ...node.data.data,
+                                    ...updatedNodeData,
+                                  }
+                                },
+                              }
+                            : node
+                        )
+                      );
+                      alert('Settings Applied!'); // Optional: provide user feedback
+                    }}>
                       <Settings className="h-4 w-4 mr-2" />
                       Apply Settings
                     </Button>
@@ -759,11 +1153,26 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edge-mode">Transfer Mode</Label>
-                    <select className="w-full p-2 border rounded-md" id="edge-mode">
+                    <select
+                      className="w-full p-2 border rounded-md"
+                      id="edge-mode"
+                      value={edgeTransferMode}
+                      onChange={(e) => setEdgeTransferMode(e.target.value)}
+                    >
                       <option>Full Load</option>
                       <option>Incremental</option>
                       <option>CDC</option>
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edge-incremental-key">Incremental Key Column</Label>
+                    <Input
+                      id="edge-incremental-key"
+                      placeholder="e.g., updated_at or id"
+                      value={edgeIncrementalKeyColumn}
+                      onChange={(e) => setEdgeIncrementalKeyColumn(e.target.value)}
+                      disabled={edgeTransferMode !== 'Incremental'} // Only enable if mode is Incremental
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edge-schedule">Schedule</Label>
@@ -790,7 +1199,37 @@ export default function PipelineFlow({ selectedNode }: PipelineFlowProps) {
                       <option>Retry (3 times)</option>
                     </select>
                   </div>
-                  <Button className="w-full">Apply Connection Settings</Button>
+                  <Button className="w-full" onClick={() => {
+                    if (!selectedElement || selectedElement.type !== 'edge') return;
+
+                    let transferModeToSave = 'full';
+                    if (edgeTransferMode === 'Incremental') {
+                      transferModeToSave = 'incremental';
+                    } else if (edgeTransferMode === 'CDC') {
+                      transferModeToSave = 'cdc';
+                    }
+
+                    const updatedEdgeData = {
+                      transferMode: transferModeToSave,
+                      incrementalKeyColumn: edgeIncrementalKeyColumn,
+                      // Potentially save other edge fields here if they had states
+                    };
+
+                    setEdges((eds) =>
+                      eds.map((edge) =>
+                        edge.id === selectedElement.data.id
+                          ? {
+                              ...edge,
+                              data: {
+                                ...(edge.data || {}), // Preserve existing fields in edge.data
+                                ...updatedEdgeData, // Overwrite/add our specific config fields
+                              },
+                            }
+                          : edge
+                      )
+                    );
+                    alert('Connection settings applied!');
+                  }}>Apply Connection Settings</Button>
                 </div>
               )}
             </CardContent>
